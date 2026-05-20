@@ -1,0 +1,666 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MLB Box Scores</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --fg: #111111;
+    --muted: #777777;
+    --rule: #e5e5e5;
+    --accent: #c8102e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0e0e0e; --fg:#eaeaea; --muted:#888; --rule:#222; --accent:#ff5d6c; }
+  }
+  html, body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.4;
+    margin: 0;
+    padding: 0;
+  }
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.25rem 1rem 0.75rem;
+    border-bottom: 1px solid var(--rule);
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: 0.02em;
+  }
+  h1 .accent { color: var(--accent); }
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+  }
+  .controls button, .controls input[type=date] {
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--rule);
+    font-family: inherit;
+    font-size: inherit;
+    padding: 0.15rem 0.45rem;
+    cursor: pointer;
+  }
+  .controls button:hover { border-color: var(--fg); }
+  main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0.5rem 1rem 3rem;
+  }
+  .game {
+    border-bottom: 1px solid var(--rule);
+    padding: 0.9rem 0;
+  }
+  .game-head { cursor: pointer; }
+  .game-head:hover .team-abbr { text-decoration: underline; }
+  .toggle {
+    color: var(--muted);
+    font-size: 0.72rem;
+    margin-left: 0.4rem;
+    user-select: none;
+  }
+  .boxscore {
+    margin-top: 0.75rem;
+    padding-top: 0.6rem;
+    border-top: 1px dashed var(--rule);
+    display: none;
+  }
+  .boxscore.open { display: block; }
+  .bx-team { margin-bottom: 1rem; }
+  .bx-team h3 {
+    font-size: 0.8rem;
+    margin: 0.4rem 0 0.3rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  table.bx {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 0.4rem;
+  }
+  table.bx th, table.bx td {
+    padding: 1px 6px;
+    text-align: right;
+    white-space: nowrap;
+    font-weight: 400;
+  }
+  table.bx th {
+    color: var(--muted);
+    font-size: 0.7rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  table.bx td.name, table.bx th.name { text-align: left; width: 100%; }
+  table.bx td.name .pos { color: var(--muted); margin-left: 4px; font-size: 0.72rem; }
+  .bx-note { color: var(--muted); font-size: 0.75rem; margin-top: 0.2rem; }
+  .game-status {
+    color: var(--muted);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.35rem;
+  }
+  .game-status.live { color: var(--accent); }
+  table.line {
+    border-collapse: collapse;
+    width: 100%;
+    font-variant-numeric: tabular-nums;
+  }
+  table.line td, table.line th {
+    padding: 2px 6px;
+    text-align: right;
+    font-weight: 400;
+    white-space: nowrap;
+  }
+  table.line th {
+    color: var(--muted);
+    font-size: 0.72rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  table.line td.team, table.line th.team {
+    text-align: left;
+    width: 100%;
+  }
+  .team-cell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .team-cell img {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+  }
+  .team-abbr { font-weight: 600; }
+  .team-rec { color: var(--muted); font-size: 0.78rem; margin-left: 0.35rem; }
+  td.rhe { font-weight: 700; padding-left: 10px; }
+  th.rhe { padding-left: 10px; }
+  .winner td.rhe-r { color: var(--accent); }
+  .empty, .loading, .error {
+    color: var(--muted);
+    text-align: center;
+    padding: 3rem 1rem;
+  }
+  .error { color: var(--accent); }
+  footer {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1rem;
+    color: var(--muted);
+    font-size: 0.72rem;
+    border-top: 1px solid var(--rule);
+  }
+  footer a { color: inherit; }
+  nav.tabs {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0.5rem 1rem 0;
+    display: flex;
+    gap: 1rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  nav.tabs a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.85rem;
+    padding: 0.35rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    cursor: pointer;
+  }
+  nav.tabs a.active { color: var(--fg); border-bottom-color: var(--accent); }
+  .subtabs {
+    display: flex;
+    gap: 0.75rem;
+    margin: 0.75rem 0 0.25rem;
+    font-size: 0.78rem;
+  }
+  .subtabs a {
+    color: var(--muted);
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.15rem 0.4rem;
+    border: 1px solid var(--rule);
+  }
+  .subtabs a.active { color: var(--fg); border-color: var(--fg); }
+  td.rank { color: var(--muted); padding-right: 4px !important; }
+  .division { margin: 1rem 0 1.5rem; }
+  .division h2 {
+    font-size: 0.8rem;
+    margin: 0 0 0.35rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  table.standings {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+  }
+  table.standings th, table.standings td {
+    padding: 2px 8px;
+    text-align: right;
+    font-weight: 400;
+    white-space: nowrap;
+  }
+  table.standings th {
+    color: var(--muted);
+    font-size: 0.72rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  table.standings td.team, table.standings th.team {
+    text-align: left;
+    width: 100%;
+  }
+  table.standings tr.leader td.team .team-abbr { color: var(--accent); }
+  .scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  @media (max-width: 600px) {
+    html, body { font-size: 13px; }
+    header { padding: 0.9rem 0.75rem 0.6rem; flex-wrap: wrap; }
+    h1 { font-size: 0.95rem; }
+    .controls { font-size: 0.8rem; gap: 0.3rem; }
+    nav.tabs { padding: 0.4rem 0.75rem 0; }
+    main { padding: 0.4rem 0.75rem 2.5rem; }
+    footer { padding: 0.9rem 0.75rem; font-size: 0.7rem; }
+    table.line td, table.line th { padding: 2px 4px; }
+    table.standings th, table.standings td { padding: 2px 5px; }
+    .game-status { font-size: 0.72rem; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>MLB <span class="accent">/</span> <span id="page-title">BOX SCORES</span></h1>
+  <div class="controls" id="scores-controls">
+    <button id="prev" title="Previous day">&larr;</button>
+    <input id="date" type="date" />
+    <button id="next" title="Next day">&rarr;</button>
+    <button id="today">today</button>
+  </div>
+</header>
+<nav class="tabs">
+  <a data-tab="scores" class="active">Scores</a>
+  <a data-tab="standings">Standings</a>
+</nav>
+<main id="app">
+  <div class="loading">loading&hellip;</div>
+</main>
+<footer>
+  a <a href="https://betweenthepipes.substack.com" target="_blank" rel="noopener"><strong>Between the Pipes</strong></a> project by <a href="https://stephanteodosescu.com" target="_blank" rel="noopener">stephan teodosescu</a>
+  &middot; data: <a href="https://statsapi.mlb.com" target="_blank" rel="noopener">MLB StatsAPI</a>
+  &middot; <a href="https://github.com/steodose/mlb-scores" target="_blank" rel="noopener">source code</a>
+</footer>
+<script>
+(() => {
+  const app = document.getElementById("app");
+  const dateInput = document.getElementById("date");
+
+  const pad = n => String(n).padStart(2, "0");
+  const isoDate = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const parseISO = s => {
+    const [y, m, d] = s.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  };
+
+  const logoUrl = id => `https://www.mlbstatic.com/team-logos/${id}.svg`;
+
+  async function load(dateStr) {
+    app.innerHTML = `<div class="loading">loading&hellip;</div>`;
+    const url = `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${dateStr}&hydrate=linescore,team`;
+    let data;
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      data = await r.json();
+    } catch (e) {
+      app.innerHTML = `<div class="error">failed to load: ${e.message}</div>`;
+      return;
+    }
+    const games = (data.dates && data.dates[0] && data.dates[0].games) || [];
+    if (!games.length) {
+      app.innerHTML = `<div class="empty">no games scheduled.</div>`;
+      return;
+    }
+    games.sort((a, b) => new Date(a.gameDate) - new Date(b.gameDate));
+    app.innerHTML = games.map(renderGame).join("");
+  }
+
+  function renderGame(g) {
+    const home = g.teams.home;
+    const away = g.teams.away;
+    const ls = g.linescore || {};
+    const innings = ls.innings || [];
+    const scheduled = ls.scheduledInnings || 9;
+    const numCols = Math.max(scheduled, innings.length);
+
+    const status = g.status || {};
+    const abstract = status.abstractGameState; // Preview | Live | Final
+    const detailed = status.detailedState || abstract || "";
+
+    // Status header
+    let statusText = detailed.toUpperCase();
+    let statusClass = "";
+    if (abstract === "Live") {
+      const half = ls.inningHalf ? ls.inningHalf.toUpperCase() : "";
+      const inning = ls.currentInningOrdinal || "";
+      const inningStr = `${half} ${inning}`.trim();
+      const outs = ls.outs;
+      const outsStr = (outs != null) ? `${outs} OUT${outs === 1 ? "" : "S"}` : "";
+      statusText = [inningStr, outsStr].filter(Boolean).join(" · ") || statusText;
+      statusClass = "live";
+    } else if (abstract === "Preview") {
+      const d = new Date(g.gameDate);
+      const t = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      statusText = t.toUpperCase();
+    }
+
+    const homeWin = abstract === "Final" && (home.score ?? 0) > (away.score ?? 0);
+    const awayWin = abstract === "Final" && (away.score ?? 0) > (home.score ?? 0);
+
+    const headerCols = Array.from({ length: numCols }, (_, i) => `<th>${i + 1}</th>`).join("");
+    const headerRow = `
+      <tr>
+        <th class="team"></th>
+        ${headerCols}
+        <th class="rhe">R</th><th>H</th><th>E</th>
+      </tr>`;
+
+    const row = (side, won) => {
+      const team = side.team || {};
+      const abbr = (team.abbreviation || team.teamName || team.name || "").toUpperCase();
+      const record = side.leagueRecord ? `${side.leagueRecord.wins}-${side.leagueRecord.losses}` : "";
+      const cells = [];
+      for (let i = 0; i < numCols; i++) {
+        const inn = innings[i];
+        let v = "";
+        if (inn) {
+          const sideKey = side === g.teams.home ? "home" : "away";
+          const runs = inn[sideKey] && inn[sideKey].runs;
+          v = (runs === undefined || runs === null) ? "" : runs;
+        }
+        cells.push(`<td>${v}</td>`);
+      }
+      const totalsSide = side === g.teams.home ? "home" : "away";
+      const tot = ls.teams && ls.teams[totalsSide] ? ls.teams[totalsSide] : {};
+      const r = side.score ?? tot.runs ?? "";
+      const h = tot.hits ?? "";
+      const e = tot.errors ?? "";
+      return `
+        <tr class="${won ? "winner" : ""}">
+          <td class="team">
+            <span class="team-cell">
+              <img src="${logoUrl(team.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'" />
+              <span class="team-abbr">${abbr}</span>
+              ${record ? `<span class="team-rec">${record}</span>` : ""}
+            </span>
+          </td>
+          ${cells.join("")}
+          <td class="rhe rhe-r">${r}</td><td class="rhe">${h}</td><td class="rhe">${e}</td>
+        </tr>`;
+    };
+
+    return `
+      <div class="game" data-gamepk="${g.gamePk}">
+        <div class="game-head">
+          <div class="game-status ${statusClass}">${statusText}<span class="toggle" data-toggle>[+] box</span></div>
+          <div class="scroll-x">
+            <table class="line">
+              <thead>${headerRow}</thead>
+              <tbody>
+                ${row(away, awayWin)}
+                ${row(home, homeWin)}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="boxscore" data-box></div>
+      </div>`;
+  }
+
+  async function loadBox(gamePk, container) {
+    container.innerHTML = `<div class="bx-note">loading box score&hellip;</div>`;
+    try {
+      const r = await fetch(`https://statsapi.mlb.com/api/v1/game/${gamePk}/boxscore`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const data = await r.json();
+      container.innerHTML = renderBox(data);
+    } catch (e) {
+      container.innerHTML = `<div class="bx-note error">failed: ${e.message}</div>`;
+    }
+  }
+
+  function renderBox(data) {
+    const sides = ["away", "home"];
+    return sides.map(sideKey => {
+      const t = data.teams[sideKey];
+      if (!t) return "";
+      const teamName = (t.team && (t.team.name || t.team.teamName)) || sideKey;
+      const batters = (t.batters || []).map(id => t.players["ID" + id]).filter(Boolean);
+      const pitchers = (t.pitchers || []).map(id => t.players["ID" + id]).filter(Boolean);
+
+      const batRows = batters.map(p => {
+        const s = (p.stats && p.stats.batting) || {};
+        if (s.atBats == null && s.plateAppearances == null) return "";
+        const name = (p.person && p.person.fullName) || "";
+        const pos = (p.position && p.position.abbreviation) || "";
+        return `<tr>
+          <td class="name">${name}<span class="pos">${pos}</span></td>
+          <td>${s.atBats ?? ""}</td>
+          <td>${s.runs ?? ""}</td>
+          <td>${s.hits ?? ""}</td>
+          <td>${s.rbi ?? ""}</td>
+          <td>${s.baseOnBalls ?? ""}</td>
+          <td>${s.strikeOuts ?? ""}</td>
+          <td>${(p.seasonStats && p.seasonStats.batting && p.seasonStats.batting.avg) || ""}</td>
+        </tr>`;
+      }).join("");
+
+      const pitRows = pitchers.map(p => {
+        const s = (p.stats && p.stats.pitching) || {};
+        if (s.inningsPitched == null) return "";
+        const name = (p.person && p.person.fullName) || "";
+        const note = s.note ? `<span class="pos">${s.note.replace(/[()]/g,"")}</span>` : "";
+        return `<tr>
+          <td class="name">${name}${note}</td>
+          <td>${s.inningsPitched ?? ""}</td>
+          <td>${s.hits ?? ""}</td>
+          <td>${s.runs ?? ""}</td>
+          <td>${s.earnedRuns ?? ""}</td>
+          <td>${s.baseOnBalls ?? ""}</td>
+          <td>${s.strikeOuts ?? ""}</td>
+          <td>${(p.seasonStats && p.seasonStats.pitching && p.seasonStats.pitching.era) || ""}</td>
+        </tr>`;
+      }).join("");
+
+      return `
+        <div class="bx-team">
+          <h3>${teamName} &mdash; batting</h3>
+          <div class="scroll-x"><table class="bx">
+            <thead><tr>
+              <th class="name">Batter</th><th>AB</th><th>R</th><th>H</th><th>RBI</th><th>BB</th><th>SO</th><th>AVG</th>
+            </tr></thead>
+            <tbody>${batRows || `<tr><td class="name bx-note">no data</td></tr>`}</tbody>
+          </table></div>
+          <h3>${teamName} &mdash; pitching</h3>
+          <div class="scroll-x"><table class="bx">
+            <thead><tr>
+              <th class="name">Pitcher</th><th>IP</th><th>H</th><th>R</th><th>ER</th><th>BB</th><th>SO</th><th>ERA</th>
+            </tr></thead>
+            <tbody>${pitRows || `<tr><td class="name bx-note">no data</td></tr>`}</tbody>
+          </table></div>
+        </div>`;
+    }).join("");
+  }
+
+  app.addEventListener("click", e => {
+    const head = e.target.closest(".game-head");
+    if (!head) return;
+    const game = head.closest(".game");
+    const box = game.querySelector("[data-box]");
+    const toggle = game.querySelector("[data-toggle]");
+    const open = box.classList.toggle("open");
+    toggle.textContent = open ? "[-] box" : "[+] box";
+    if (open && !box.dataset.loaded) {
+      box.dataset.loaded = "1";
+      loadBox(game.dataset.gamepk, box);
+    }
+  });
+
+  function setDate(d) {
+    const s = isoDate(d);
+    dateInput.value = s;
+    load(s);
+  }
+  function shift(days) {
+    const d = parseISO(dateInput.value);
+    d.setDate(d.getDate() + days);
+    setDate(d);
+  }
+
+  document.getElementById("prev").onclick = () => shift(-1);
+  document.getElementById("next").onclick = () => shift(1);
+  document.getElementById("today").onclick = () => setDate(new Date());
+  dateInput.onchange = () => load(dateInput.value);
+
+  // ---- Standings ----
+  const DIVISIONS = {
+    201: "AL East", 202: "AL Central", 200: "AL West",
+    204: "NL East", 205: "NL Central", 203: "NL West",
+  };
+  const DIV_ORDER = [201, 202, 200, 204, 205, 203];
+
+  let standingsData = null;
+  let standingsView = "division"; // or "overall"
+
+  async function loadStandings() {
+    app.innerHTML = `<div class="loading">loading&hellip;</div>`;
+    const season = new Date().getFullYear();
+    const url = `https://statsapi.mlb.com/api/v1/standings?leagueId=103,104&season=${season}&standingsTypes=regularSeason&hydrate=team`;
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      standingsData = await r.json();
+      renderStandingsView();
+    } catch (e) {
+      app.innerHTML = `<div class="error">failed to load: ${e.message}</div>`;
+    }
+  }
+
+  function teamRow(tr, opts = {}) {
+    const team = tr.team || {};
+    const abbr = (team.abbreviation || team.teamName || team.name || "").toUpperCase();
+    const w = tr.wins ?? "";
+    const l = tr.losses ?? "";
+    const pct = tr.winningPercentage || "";
+    const gb = opts.gb != null ? opts.gb : (tr.gamesBack || "-");
+    const splits = (tr.records && tr.records.splitRecords) || [];
+    const last10 = splits.find(s => s.type === "lastTen");
+    const l10 = last10 ? `${last10.wins}-${last10.losses}` : "";
+    const streak = (tr.streak && tr.streak.streakCode) || "";
+    const rd = tr.runDifferential ?? "";
+    const rankCell = opts.rank != null ? `<td class="rank">${opts.rank}</td>` : "";
+    return `<tr class="${opts.leader ? "leader" : ""}">
+      ${rankCell}
+      <td class="team">
+        <span class="team-cell">
+          <img src="${logoUrl(team.id)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'" />
+          <span class="team-abbr">${abbr}</span>
+        </span>
+      </td>
+      <td>${w}</td>
+      <td>${l}</td>
+      <td>${pct}</td>
+      <td>${gb}</td>
+      <td>${rd > 0 ? "+" + rd : rd}</td>
+      <td>${l10}</td>
+      <td>${streak}</td>
+    </tr>`;
+  }
+
+  function subnav() {
+    return `
+      <div class="subtabs">
+        <a data-sub="division" class="${standingsView === "division" ? "active" : ""}">Division</a>
+        <a data-sub="overall" class="${standingsView === "overall" ? "active" : ""}">Overall</a>
+      </div>`;
+  }
+
+  function renderStandingsView() {
+    if (!standingsData) return;
+    const html = standingsView === "division"
+      ? renderDivisionView(standingsData)
+      : renderOverallView(standingsData);
+    app.innerHTML = subnav() + html;
+    document.querySelectorAll(".subtabs a").forEach(a => {
+      a.addEventListener("click", () => {
+        standingsView = a.dataset.sub;
+        renderStandingsView();
+      });
+    });
+  }
+
+  function renderDivisionView(data) {
+    const byDiv = {};
+    for (const record of (data.records || [])) {
+      const divId = record.division && record.division.id;
+      if (divId) byDiv[divId] = record;
+    }
+    if (!Object.keys(byDiv).length) return `<div class="empty">no standings available.</div>`;
+    return DIV_ORDER.filter(id => byDiv[id]).map(id => {
+      const rec = byDiv[id];
+      const rows = (rec.teamRecords || []).map((tr, i) => teamRow(tr, { leader: i === 0 })).join("");
+      return `
+        <div class="division">
+          <h2>${DIVISIONS[id]}</h2>
+          <div class="scroll-x"><table class="standings">
+            <thead><tr>
+              <th class="team">Team</th><th>W</th><th>L</th><th>PCT</th><th>GB</th><th>RD</th><th>L10</th><th>STRK</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>
+        </div>`;
+    }).join("");
+  }
+
+  function renderOverallView(data) {
+    const all = [];
+    for (const record of (data.records || [])) {
+      for (const tr of (record.teamRecords || [])) all.push(tr);
+    }
+    if (!all.length) return `<div class="empty">no standings available.</div>`;
+    all.sort((a, b) => {
+      const pa = parseFloat(a.winningPercentage) || 0;
+      const pb = parseFloat(b.winningPercentage) || 0;
+      if (pb !== pa) return pb - pa;
+      return (b.wins || 0) - (a.wins || 0);
+    });
+    const top = all[0];
+    const rows = all.map((tr, i) => {
+      const gb = i === 0
+        ? "-"
+        : (((top.wins - tr.wins) + (tr.losses - top.losses)) / 2).toFixed(1).replace(/\.0$/, "");
+      return teamRow(tr, { rank: i + 1, gb, leader: i === 0 });
+    }).join("");
+    return `
+      <div class="division">
+        <h2>MLB &mdash; Overall</h2>
+        <table class="standings">
+          <thead><tr>
+            <th class="rank">#</th><th class="team">Team</th><th>W</th><th>L</th><th>PCT</th><th>GB</th><th>RD</th><th>L10</th><th>STRK</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  // ---- Tabs ----
+  const scoresControls = document.getElementById("scores-controls");
+  const pageTitle = document.getElementById("page-title");
+  let currentTab = "scores";
+  function setTab(tab) {
+    currentTab = tab;
+    document.querySelectorAll("nav.tabs a").forEach(a => {
+      a.classList.toggle("active", a.dataset.tab === tab);
+    });
+    if (tab === "scores") {
+      scoresControls.style.display = "";
+      pageTitle.textContent = "BOX SCORES";
+      load(dateInput.value);
+    } else {
+      scoresControls.style.display = "none";
+      pageTitle.textContent = "STANDINGS";
+      loadStandings();
+    }
+  }
+  document.querySelectorAll("nav.tabs a").forEach(a => {
+    a.addEventListener("click", () => setTab(a.dataset.tab));
+  });
+
+  setDate(new Date());
+})();
+</script>
+</body>
+</html>
