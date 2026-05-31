@@ -39,8 +39,16 @@
     font-weight: 700;
     margin: 0;
     letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
   }
   h1 .accent { color: var(--accent); }
+  h1 img.mlb-logo {
+    height: 1.3em;
+    width: auto;
+    vertical-align: middle;
+  }
   .controls {
     display: flex;
     align-items: center;
@@ -253,7 +261,7 @@
 </head>
 <body>
 <header>
-  <h1>MLB <span class="accent">/</span> <span id="page-title">BOX SCORES</span></h1>
+  <h1><img class="mlb-logo" src="https://www.mlbstatic.com/team-logos/league-on-light/1.svg" alt="" />MLB <span id="page-title">BOX SCORES</span></h1>
   <div class="controls" id="scores-controls">
     <button id="prev" title="Previous day">&larr;</button>
     <input id="date" type="date" />
@@ -289,7 +297,7 @@
 
   async function load(dateStr) {
     app.innerHTML = `<div class="loading">loading&hellip;</div>`;
-    const url = `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${dateStr}&hydrate=linescore,team`;
+    const url = `https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=${dateStr}&hydrate=linescore,team,broadcasts(all)`;
     let data;
     try {
       const r = await fetch(url);
@@ -334,7 +342,20 @@
     } else if (abstract === "Preview") {
       const d = new Date(g.gameDate);
       const t = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-      statusText = t.toUpperCase();
+      const tvAll = (g.broadcasts || []).filter(b => b.type === "TV" && b.language === "en");
+      const national = [...new Set(tvAll.filter(b => b.isNational || b.homeAway === "national").map(b => b.name))];
+      let tvStr = "";
+      if (national.length) {
+        tvStr = ` · ${national.join(", ")}`;
+      } else {
+        const away = [...new Set(tvAll.filter(b => b.homeAway === "away").map(b => b.name))].join("/");
+        const home = [...new Set(tvAll.filter(b => b.homeAway === "home").map(b => b.name))].join("/");
+        const parts = [];
+        if (home) parts.push(`H: ${home}`);
+        if (away) parts.push(`A: ${away}`);
+        if (parts.length) tvStr = ` · ${parts.join(" | ")}`;
+      }
+      statusText = t.toUpperCase() + tvStr;
     }
 
     const homeWin = abstract === "Final" && (home.score ?? 0) > (away.score ?? 0);
